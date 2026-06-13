@@ -1,155 +1,152 @@
 package com.OptimumPool.BookRide.Service;
 
 import com.OptimumPool.BookRide.Configuration.BookingDTO;
+import com.OptimumPool.BookRide.Configuration.RabbitConfig;
 import com.OptimumPool.BookRide.Model.*;
-import com.OptimumPool.BookRide.Repository.BookRideRepository;
-import com.OptimumPool.BookRide.Repository.BookingRepo;
-import com.OptimumPool.BookRide.Repository.InvoiceRepository;
-import org.json.simple.JSONObject;
-import org.springframework.amqp.core.DirectExchange;
+import com.OptimumPool.BookRide.Repository.*;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import java.util.UUID;
 
 @Service
-public class BookingRideService implements IBookRideService{
+public class BookingRideService {
 
-    @Autowired
-    private BookRideRepository repo;
+    private final BookRideRepository rideRepo;
+    private final BookingRepo bookingRepo;
+    private final InvoiceRepository invoiceRepo;
+    private final RabbitTemplate rabbitTemplate;
 
-    @Autowired
-    private BookingRepo repo2;
-
-    @Autowired
-    private InvoiceRepository repo3;
-
-
-    public List<Offerride> getAllRides(){
-        List<Offerride> l1 = repo.findAll();
-        return l1;
+    // RECOMMENDED: Constructor Injection over Field Injection
+    public BookingRideService(BookRideRepository rideRepo,
+                              BookingRepo bookingRepo,
+                              InvoiceRepository invoiceRepo,
+                              RabbitTemplate rabbitTemplate) {
+        this.rideRepo = rideRepo;
+        this.bookingRepo = bookingRepo;
+        this.invoiceRepo = invoiceRepo;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
-    public Offerride getRide(int id){
-        Offerride ride = repo.findById(id).get();
-        return ride;
+    // ─── Ride Listing ────────────────────────────────────────────
+
+    public List<Offerride> getAllRides() {
+        return rideRepo.findAll();
     }
 
-    public List<Offerride> getRide(String from ,String to) {
-        boolean b1 = false;
-        boolean b2 = false;
-        List<Offerride> output = new ArrayList<>();
-        List<Offerride> l1 = repo.findAll();
-        for (Offerride ride : l1) {
+    public Offerride getRideById(String id) {
+        return rideRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Ride not found: " + id));
+    }
 
-            List<String> getpoints = ride.getWayPoint();
-            for (String city : getpoints) {
-                if (city.contains(from)) b1 = true;
-                if(city.contains(to)) b2 = true;
-
-                }
-            if(b1 && b2) output.add(ride);
-            b1=false;
-            b2=false;
+    public List<Offerride> filterRides(String from, String to) {
+        List<Offerride> all = rideRepo.findAll();
+        List<Offerride> result = new ArrayList<>();
+        for (Offerride ride : all) {
+            List<String> points = ride.getWayPoint();
+            if (points.contains(from) && points.contains(to) &&
+                    points.indexOf(from) < points.indexOf(to)) {
+                result.add(ride);
             }
-
-        return output;
-    }
-
-    public Bookings bookRide(int id, String customerName, int no_seat_want,String from, String to){
-
-        Random r1 = new Random();
-        int booking_id = r1.nextInt(1000);
-        Offerride ride = repo.findById(id).get();
-        int index1 = ride.getWayPoint().indexOf(from);
-        int index2 = ride.getWayPoint().indexOf(to);
-        if(ride.getCar_info().getAvl_seats()-no_seat_want>=0) {
-            Bookings booking = new Bookings(booking_id, ride, customerName, no_seat_want, ride.getDistance().get(index2) - ride.getDistance().get(index1),from,to);
-            repo2.save(booking);
-            ride.getCar_info().setAvl_seats(ride.getCar_info().getAvl_seats() - no_seat_want);
-            repo.save(ride);
-            return booking;
         }
-        else return null;
+        return result;
     }
 
-    public List<ImportantDetails> getCarInformation(String from, String to){
-        List<Offerride>list1 = getRide(from,to);
-        List<ImportantDetails> list2 = new ArrayList<ImportantDetails>();
-        for(Offerride ride2:list1){
-            String carNum1 = ride2.getCar_info().getCarNum();
-            int avl_seats1 = ride2.getCar_info().getAvl_seats();
-            int index1 = ride2.getWayPoint().indexOf(from);
-            int index2 = ride2.getWayPoint().indexOf(to);
-            int distance1 = ride2.getDistance().get(index2)-ride2.getDistance().get(index1);
-            int charge1 = distance1*ride2.getCharge_per_km();
-            ImportantDetails temp = new ImportantDetails(carNum1,avl_seats1,distance1,charge1);
-            list2.add(temp);
+    public List<ImportantDetails> getCarDetails(String from, String to) {
+        List<ImportantDetails> details = new ArrayList<>();
+        for (Offerride ride : filterRides(from, to)) {
+            int i1 = ride.getWayPoint().indexOf(from);
+            int i2 = ride.getWayPoint().indexOf(to);
+            int dist   = ride.getDistance().get(i2) - ride.getDistance().get(i1);
+            int charge = dist * ride.getCharge_per_km();
+            details.add(new ImportantDetails(
+                    ride.getCar_info().getCarNum(),
+                    ride.getCar_info().getAvl_seats(),
+                    dist, charge
+            ));
         }
-        return list2;
-
+        return details;
     }
 
-    public Bookings getBooking(String customerName){
-        Bookings bookingDetail = repo2.findBycustomerName(customerName);
-        return bookingDetail;
-    }
+    // ─── Booking ──────────────────────────────────────────────────
 
-    public Invoice getInvoice(int id){
-        Bookings booking = repo2.findById(id).get();
-        Random r1 = new Random();
-        int Invoice_Id = r1.nextInt(1000);
-//        int bill_generated=200;
-        int bill_generated = booking.getDistance()*booking.getNo_seat_want()*booking.getOfferObject().getCharge_per_km();
-        Invoice invoice = new Invoice(Invoice_Id,booking,bill_generated);
-        repo3.save(invoice);
-        return invoice;
-    }
-    public String settleRide(int Invoice_Id,int bill_amount){
-        Invoice invoice = repo3.findById(Invoice_Id).get();
-        int booking_id = invoice.getBooking_obj().getId();
-        if(invoice.getBill_generated()==bill_amount) {
-            repo3.deleteById(Invoice_Id);
-            repo2.deleteById(booking_id);
-            return "Bill amount is paid successfully, your ride has been completed";
+    public Bookings bookRide(String rideId, String customerName, int seats, String from, String to) {
+        Offerride ride = getRideById(rideId);
+
+        if (ride.getCar_info().getAvl_seats() < seats) {
+            throw new RuntimeException("Not enough seats available");
         }
-        else
-        {
-            return "Payment failed, Please give the bill amount as mentioned in invoice";
+
+        int i1   = ride.getWayPoint().indexOf(from);
+        int i2   = ride.getWayPoint().indexOf(to);
+        int dist = ride.getDistance().get(i2) - ride.getDistance().get(i1);
+
+        int uniqueId = Math.abs(UUID.randomUUID().hashCode());
+
+        Bookings booking = new Bookings(
+                uniqueId,
+                ride, customerName, seats, dist, from, to
+        );
+        bookingRepo.save(booking);
+
+        ride.getCar_info().setAvl_seats(ride.getCar_info().getAvl_seats() - seats);
+        rideRepo.save(ride);
+
+        pushBookingToOfferRide();
+
+        return booking;
+    }
+
+    public Bookings getBookingByCustomer(String customerName) {
+        return bookingRepo.findByCustomerName(customerName);
+    }
+
+    // ─── Invoice ─────────────────────────────────────────────────
+
+    public com.OptimumPool.BookRide.Model.Invoice generateInvoice(String bookingId) {
+        Bookings booking = bookingRepo.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+        int bill = booking.getDistance()
+                * booking.getNo_seat_want()
+                * booking.getOfferObject().getCharge_per_km();
+
+        com.OptimumPool.BookRide.Model.Invoice invoice = new com.OptimumPool.BookRide.Model.Invoice(booking, bill);
+        return invoiceRepo.save(invoice);
+    }
+
+    public String settleInvoice(String invoiceId, int paidAmount) {
+        com.OptimumPool.BookRide.Model.Invoice invoice = invoiceRepo.findById(invoiceId)
+                .orElseThrow(() -> new RuntimeException("Invoice not found"));
+
+        if (invoice.getBill_generated() != paidAmount) {
+            return "Payment failed. Expected: ₹" + invoice.getBill_generated();
+        }
+
+        invoice.setStatus("PAID");
+        invoiceRepo.save(invoice);
+
+        // Clear entry by ID value safely matching repository definitions
+        bookingRepo.deleteById(String.valueOf(invoice.getBooking_obj().getId()));
+        invoiceRepo.deleteById(invoiceId);
+
+        return "Payment successful. Ride completed.";
+    }
+
+    // ─── RabbitMQ ─────────────────────────────────────────────────
+
+    @RabbitListener(queues = RabbitConfig.OFFER_QUEUE)
+    public void receiveOffersFromOfferRide(
+            com.OptimumPool.BookRide.Configuration.OfferDTO dto) {
+        if (dto.getOfferList() != null) {
+            rideRepo.saveAll(dto.getOfferList());
         }
     }
 
-    //sending data to rabbitmq
-
-    List<Bookings> bookList;
-    @Override
-    public List<Bookings> getList() {
-        bookList = repo2.findAll();
-        return bookList;
+    public void pushBookingToOfferRide() {
+        BookingDTO dto = new BookingDTO(bookingRepo.findAll());
+        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_NAME, RabbitConfig.BOOKING_KEY, dto);
     }
-
-
-
-    /*Rabbitmq is sending data*/
-    @Autowired(required = false)
-    private RabbitTemplate rt;
-
-    @Autowired(required = false)
-    private DirectExchange exchange;
-
-    public  void sendDataToConsumer(){
-        JSONObject data = new JSONObject();
-        data.put("booklist" , bookList);
-        BookingDTO bdto = new BookingDTO();
-        bdto.setJsonObject(data);
-
-        System.out.println("data sended to rabbit mq");
-        rt.convertAndSend(exchange.getName(),"route_key",bdto);
-
-    }
-
-
 }

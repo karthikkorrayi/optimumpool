@@ -3,25 +3,29 @@ package com.OptimumPool.BookRide.Model;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-@Document(collection = "invoice")
+@Document(collection = "invoices_col")
 public class Invoice {
     @Id
-    private int invoice_id;
+    private String invoiceId;
     private Bookings booking_obj;
     private int bill_generated;
+    private String status; // e.g., "PENDING", "PAID"
 
-    public Invoice(int invoice_id, Bookings booking_obj, int bill_generated) {
-        this.invoice_id = invoice_id;
+    public Invoice() {
+    }
+
+    public Invoice(Bookings booking_obj, int bill_generated) {
         this.booking_obj = booking_obj;
         this.bill_generated = bill_generated;
+        this.status = "PENDING";
     }
 
-    public int getInvoice_id() {
-        return invoice_id;
+    public String getInvoiceId() {
+        return invoiceId;
     }
 
-    public void setInvoice_id(int invoice_id) {
-        this.invoice_id = invoice_id;
+    public void setInvoiceId(String invoiceId) {
+        this.invoiceId = invoiceId;
     }
 
     public Bookings getBooking_obj() {
@@ -40,7 +44,11 @@ public class Invoice {
         this.bill_generated = bill_generated;
     }
 
+    public String getStatus() {
+        return status;
+    }
 
-    public Invoice() {
+    public void setStatus(String status) {
+        this.status = status;
     }
 }

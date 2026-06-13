@@ -3,72 +3,68 @@ package com.OptimumPool.Authentication.Service;
 import com.OptimumPool.Authentication.Exception.UserAlreadyExist;
 import com.OptimumPool.Authentication.Model.User;
 import com.OptimumPool.Authentication.Repository.UserRepo;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 @Service
-public class UserService implements IService{
+public class UserService {
 
-    String un;
     @Autowired
     private UserRepo repo;
 
-    @Override
-    public User addUser(User u) throws UserAlreadyExist {
-        if(!repo.findById(u.getUsername()).isEmpty())
-        {
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtService jwtService;
+
+    // FIXED: no more instance field for username (was a concurrency bug)
+    public User register(User u) throws UserAlreadyExist {
+        if (repo.existsByUsername(u.getUsername())) {
             throw new UserAlreadyExist();
         }
-        User u1 = repo.save(u);
-        return u1;
+        // Hash password before saving — never store plaintext
+        u.setPassword(passwordEncoder.encode(u.getPassword()));
+        return repo.save(u);
     }
 
-    @Override
-    public Map<String, String> login(User u) {
-        Map<String, String> token = new HashMap<String, String>();
-        un = u.getUsername();
-        User u1 = repo.findByUsernameAndPassword(u.getUsername(), u.getPassword());
-        if(u1!=null){
-            token = getToken(u);
+    public Map<String, String> login(String username, String rawPassword) {
+        User user = repo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
+            throw new RuntimeException("Invalid credentials");
         }
-        return token;
+
+        String token = jwtService.generateToken(user.getUsername(), user.getRole());
+        Map<String, String> response = new HashMap<>();
+        response.put("token", token);
+        response.put("role", user.getRole());
+        return response;
     }
 
-    public Map<String, String> getToken(User u) {
-        String jwtToken = Jwts.builder()
-                .setSubject(u.getUsername())
-                .setIssuedAt(new Date(0))
-                .signWith(SignatureAlgorithm.HS256, "itcKey").compact();
-        Map<String, String> jtoken = new HashMap<String, String>();
-        jtoken.put("token" , jwtToken);
-        return jtoken;
+    public User getProfile(String username) {
+        return repo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
 
-    @Override
-    public User getProfile() {
-        return repo.findByUsername(un);
+    public User updateUser(String username, User updates) {
+        User existing = repo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (updates.getPhone() != 0) existing.setPhone(updates.getPhone());
+        if (updates.getPassword() != null && !updates.getPassword().isBlank()) {
+            existing.setPassword(passwordEncoder.encode(updates.getPassword()));
+        }
+        return repo.save(existing);
     }
 
-    @Override
-    public User getUpdate(User u) {
-        Optional<User> existingUser = Optional.ofNullable(repo.findByUsername(un));
-        User u1 = existingUser.get();
-        u1.setPassword(u.getPassword());
-        u1.setPhone(u.getPhone());
-        User u2 = repo.save(u1);
-        return u2;
-    }
-
-    @Override
-    public boolean getDelete() {
-        repo.deleteById(un);
-        return true;
+    public void deleteUser(String username) {
+        User user = repo.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        repo.delete(user);
     }
 }

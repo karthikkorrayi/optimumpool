@@ -21,7 +21,14 @@ public class Filter extends GenericFilter {
         else{
             String jwtToken=token.substring(7);
             //validation
-            String tokenName = Jwts.parser().setSigningKey("itcKey").parseClaimsJws(jwtToken).getBody().getSubject();
+            //String tokenName = Jwts.parser().setSigningKey("itcKey").parseClaimsJws(jwtToken).getBody().getSubject();
+
+            String tokenName = Jwts.parser()
+                    .setSigningKey("itcKey".getBytes()) // Pass the key as bytes or a signing key object
+                    .build()                            // You must call .build() to get the parser
+                    .parseClaimsJws(jwtToken)
+                    .getBody()
+                    .getSubject();
             MQToken mqt = new MQToken();
             mqt.setMqtoken(tokenName);
             chain.doFilter(httpRequest, httpResponse);

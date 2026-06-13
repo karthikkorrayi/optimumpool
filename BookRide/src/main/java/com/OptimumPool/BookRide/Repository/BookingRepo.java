@@ -3,10 +3,12 @@ package com.OptimumPool.BookRide.Repository;
 import com.OptimumPool.BookRide.Model.Bookings;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
-import org.springframework.stereotype.Repository;
+import java.util.List;
 
-@Repository
-public interface BookingRepo extends MongoRepository<Bookings,Integer> {
-    @Query("{customerName:?0}")
-    public Bookings findBycustomerName(String customerName);
+public interface BookingRepo extends MongoRepository<Bookings, String> {
+
+    @Query("{ 'offerObject.id' : ?0 }")
+    List<Bookings> findByOfferObjectOffer_id(String offerId);
+
+    Bookings findByCustomerName(String customerName);
 }

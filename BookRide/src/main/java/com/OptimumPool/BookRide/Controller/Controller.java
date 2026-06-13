@@ -2,82 +2,76 @@ package com.OptimumPool.BookRide.Controller;
 
 import com.OptimumPool.BookRide.Model.*;
 import com.OptimumPool.BookRide.Service.BookingRideService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
-@RequestMapping()
 public class Controller {
 
     @Autowired
     private BookingRideService service;
 
-    @GetMapping("bookrides")
-    public ResponseEntity<?> getRides(){
-        List<Offerride> demoList = service.getAllRides();
-        return new ResponseEntity<>(demoList, HttpStatus.OK);
+    @GetMapping("/bookrides")
+    public ResponseEntity<?> getAllRides() {
+        return new ResponseEntity<>(service.getAllRides(), HttpStatus.OK);
     }
 
-    @GetMapping("bookrides/{id}")
-    public ResponseEntity<?> getRide(@PathVariable int id) {
-        Offerride ride = service.getRide(id);
-        return new ResponseEntity<>(ride,HttpStatus.OK);
+    @GetMapping("/bookrides/{id}")
+    public ResponseEntity<?> getRide(@PathVariable String id) {
+        return new ResponseEntity<>(service.getRideById(id), HttpStatus.OK);
     }
 
-    @GetMapping("bookrides/{from}/{to}")
-    public ResponseEntity<?> getFilterRides(@PathVariable String from, @PathVariable String to){
-        List<Offerride>list1 = service.getRide(from,to);
-        return new ResponseEntity<>(list1,HttpStatus.OK);
+    @GetMapping("/bookrides/filter/{from}/{to}")
+    public ResponseEntity<?> filterRides(@PathVariable String from, @PathVariable String to) {
+        return new ResponseEntity<>(service.filterRides(from, to), HttpStatus.OK);
     }
 
-    @GetMapping("rides/{from}/{to}")
-    public ResponseEntity<?> getCarInfo(@PathVariable String from, @PathVariable String to){
-
-        List<ImportantDetails>list1 = service.getCarInformation(from,to);
-        return new ResponseEntity<>(list1,HttpStatus.OK);
+    @GetMapping("/rides/details/{from}/{to}")
+    public ResponseEntity<?> getCarDetails(@PathVariable String from, @PathVariable String to) {
+        return new ResponseEntity<>(service.getCarDetails(from, to), HttpStatus.OK);
     }
 
-    @PostMapping("bookrides/{id}/{customerName}/{no_seat_want}/{from}/{to}")
-    public ResponseEntity<?> bookRide(@PathVariable int id , @PathVariable String customerName ,@PathVariable int no_seat_want,@PathVariable String from,@PathVariable String to){
-        Bookings booking = service.bookRide(id,customerName,no_seat_want,from,to);
-        return new ResponseEntity<>("You have booked your ride successfully",HttpStatus.CREATED);
+    // Book a ride — all params in request body, not path variables
+    @PostMapping("/bookrides/{id}")
+    public ResponseEntity<?> bookRide(@PathVariable String id,
+                                      @RequestBody Map<String, Object> body,
+                                      HttpServletRequest request) {
+        String customerName = (String) request.getAttribute("username");
+        int seats = (int) body.get("seats");
+        String from = (String) body.get("from");
+        String to   = (String) body.get("to");
+
+        try {
+            Bookings booking = service.bookRide(id, customerName, seats, from, to);
+            return new ResponseEntity<>(booking, HttpStatus.CREATED);
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
     }
 
-
-    @GetMapping("booking/{customerName}")
-    public ResponseEntity<?> getBookingDetailsById(@PathVariable String customerName){
-        Bookings booking = service.getBooking(customerName);
-        return new ResponseEntity<>(booking,HttpStatus.OK);
+    @GetMapping("/booking/me")
+    public ResponseEntity<?> getMyBooking(HttpServletRequest request) {
+        String customerName = (String) request.getAttribute("username");
+        return new ResponseEntity<>(service.getBookingByCustomer(customerName), HttpStatus.OK);
     }
 
-    @GetMapping("invoice/{id}")
-    public ResponseEntity<?> getInvoice(@PathVariable int id){
-        Invoice invoice = service.getInvoice(id);
-        return new ResponseEntity<>(invoice,HttpStatus.OK);
-    }
-    @PostMapping("invoice/{id}/{bill_amount}")
-    public String billPaid(@PathVariable int id,@PathVariable int bill_amount){
-        String message = service.settleRide(id, bill_amount);
-        return message;
+    @PostMapping("/invoice/{bookingId}")
+    public ResponseEntity<?> generateInvoice(@PathVariable String bookingId) {
+        return new ResponseEntity<>(service.generateInvoice(bookingId), HttpStatus.CREATED);
     }
 
-    @GetMapping("booking")
-    public ResponseEntity<?> getuser(){
-       return new  ResponseEntity<>(service.getList(), HttpStatus.OK);
+    @PostMapping("/invoice/pay/{invoiceId}")
+    public ResponseEntity<?> payInvoice(@PathVariable String invoiceId,
+                                        @RequestBody Map<String, Integer> body) {
+        String result = service.settleInvoice(invoiceId, body.get("amount"));
+        return new ResponseEntity<>(result, HttpStatus.OK);
     }
 
-    @GetMapping("data")
-    public ResponseEntity<?> get(){
-        service.sendDataToConsumer();
-        return new  ResponseEntity<>("Booking information is send successfully to RabbitMQ", HttpStatus.OK);
-    }
-
-
-
-
+    @GetMapping("/health")
+    public String health() { return "BookRide UP"; }
 }

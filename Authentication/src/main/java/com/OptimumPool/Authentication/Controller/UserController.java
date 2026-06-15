@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+@CrossOrigin(origins = "http://localhost:4200")
 @RestController
 public class UserController {
 
@@ -68,5 +69,10 @@ public class UserController {
         String username = jwtService.extractUsername(token);
         userService.deleteUser(username);
         return new ResponseEntity<>("Deleted successfully", HttpStatus.OK);
+    }
+
+    @GetMapping("/health")
+    public ResponseEntity<String> health() {
+        return new ResponseEntity<>("Auth UP", HttpStatus.OK);
     }
 }

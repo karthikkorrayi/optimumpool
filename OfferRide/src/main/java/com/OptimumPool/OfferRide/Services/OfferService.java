@@ -58,13 +58,16 @@ public class OfferService implements IOfferService {
         List<Bookings> bookings = brepo.findAll();
         List<CustDetails> result = new ArrayList<>();
         for (Bookings b : bookings) {
-            CustDetails c = new CustDetails();
-            c.setCust_name(b.getCustomerName());
-            c.setNo_of_seat_want(b.getNo_seat_want());
-            c.setSource(b.getSource());
-            c.setDestination(b.getDestination());
-            c.setDate_of_journey(b.getOfferObject().getDate());
-            result.add(c);
+            result.add(new CustDetails(
+                    b.getBooking_id(),
+                    b.getCustomerName(),
+                    0L,                                    // phone not stored in booking — see note below
+                    b.getNo_seat_want(),
+                    b.getSource(),
+                    b.getDestination(),
+                    b.getOfferObject() != null ? b.getOfferObject().getDate() : "N/A",
+                    b.getBookingStatus()
+            ));
         }
         return result;
     }

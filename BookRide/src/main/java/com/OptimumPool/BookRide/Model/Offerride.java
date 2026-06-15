@@ -8,19 +8,24 @@ import java.util.ArrayList;
 @Document(collection = "rideTable")
 public class Offerride {
     @Id
-    private int offer_id;
-    public int getOffer_id() {
+    private String offer_id;
+    public String getOffer_id() {
         return offer_id;
     }
-    public void setOffer_id(int offer_id) {
+    public void setOffer_id(String offer_id) {
         this.offer_id = offer_id;
     }
 
+    private String status;
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
 
 
 
-    public Offerride(int offer_id, CarOwner car_owner, CarInfo car_info, ArrayList<String> wayPoint, ArrayList<Integer> distance, String date, int time, int charge_per_km) {
+
+    public Offerride(String offer_id, CarOwner car_owner, CarInfo car_info, ArrayList<String> wayPoint, ArrayList<Integer> distance, String date, int time, int charge_per_km) {
         this.offer_id = offer_id;
         this.car_owner = car_owner;
         this.car_info = car_info;

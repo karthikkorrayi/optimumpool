@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -42,10 +41,9 @@ public class Controller {
                                       @RequestBody Map<String, Object> body,
                                       HttpServletRequest request) {
         String customerName = (String) request.getAttribute("username");
-        int seats = (int) body.get("seats");
-        String from = (String) body.get("from");
-        String to   = (String) body.get("to");
-
+        int    seats        = (int)    body.get("seats");
+        String from         = (String) body.get("from");
+        String to           = (String) body.get("to");
         try {
             Bookings booking = service.bookRide(id, customerName, seats, from, to);
             return new ResponseEntity<>(booking, HttpStatus.CREATED);
@@ -55,14 +53,50 @@ public class Controller {
     }
 
     @GetMapping("/booking/me")
-    public ResponseEntity<?> getMyBooking(HttpServletRequest request) {
+    public ResponseEntity<?> getMyBookings(HttpServletRequest request) {
         String customerName = (String) request.getAttribute("username");
-        return new ResponseEntity<>(service.getBookingByCustomer(customerName), HttpStatus.OK);
+        return new ResponseEntity<>(service.getAllBookingsByCustomer(customerName), HttpStatus.OK);
     }
+
+    // ─── Owner Accept / Reject ───────────────────────────────────
+
+    @GetMapping("/booking/owner/all")
+    public ResponseEntity<?> getAllBookingsForOwner() {
+        return new ResponseEntity<>(service.getAllBookings(), HttpStatus.OK);
+    }
+
+    @GetMapping("/booking/owner/pending")
+    public ResponseEntity<?> getPendingBookings() {
+        return new ResponseEntity<>(service.getBookingsByStatus("PENDING"), HttpStatus.OK);
+    }
+
+    @PutMapping("/booking/accept/{bookingId}")
+    public ResponseEntity<?> acceptBooking(@PathVariable String bookingId) {
+        try {
+            return new ResponseEntity<>(service.acceptBooking(bookingId), HttpStatus.OK);
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PutMapping("/booking/reject/{bookingId}")
+    public ResponseEntity<?> rejectBooking(@PathVariable String bookingId) {
+        try {
+            return new ResponseEntity<>(service.rejectBooking(bookingId), HttpStatus.OK);
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    // ─── Invoice ─────────────────────────────────────────────────
 
     @PostMapping("/invoice/{bookingId}")
     public ResponseEntity<?> generateInvoice(@PathVariable String bookingId) {
-        return new ResponseEntity<>(service.generateInvoice(bookingId), HttpStatus.CREATED);
+        try {
+            return new ResponseEntity<>(service.generateInvoice(bookingId), HttpStatus.CREATED);
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
     }
 
     @PostMapping("/invoice/pay/{invoiceId}")

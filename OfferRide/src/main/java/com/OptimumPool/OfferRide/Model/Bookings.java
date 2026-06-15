@@ -14,6 +14,7 @@ public class Bookings {
     private int distance;
     private String source;
     private String destination;
+    private String bookingStatus;
 
     public Bookings() {}
 
@@ -42,4 +43,6 @@ public class Bookings {
     public void setSource(String s)            { this.source = s; }
     public String getDestination()             { return destination; }
     public void setDestination(String d)       { this.destination = d; }
+    public String getBookingStatus()           { return bookingStatus; }
+    public void setBookingStatus(String s)     { this.bookingStatus = s; }
 }

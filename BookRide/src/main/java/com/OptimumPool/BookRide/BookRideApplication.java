@@ -14,9 +14,8 @@ public class BookRideApplication {
 	}
 
 	@Bean
-	public FilterRegistrationBean<JwtFilter> jwtFilter() {
-		FilterRegistrationBean<JwtFilter> bean = new FilterRegistrationBean<>();
-		bean.setFilter(new JwtFilter());
+	public FilterRegistrationBean<JwtFilter> jwtFilterRegistration(JwtFilter filter) {
+		FilterRegistrationBean<JwtFilter> bean = new FilterRegistrationBean<>(filter);
 		bean.addUrlPatterns("/bookrides/*", "/booking/*", "/invoice/*", "/rides/*");
 		return bean;
 	}

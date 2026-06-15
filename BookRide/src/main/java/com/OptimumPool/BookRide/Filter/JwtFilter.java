@@ -26,10 +26,12 @@ public class JwtFilter extends GenericFilter {
         HttpServletRequest  httpReq  = (HttpServletRequest)  request;
         HttpServletResponse httpResp = (HttpServletResponse) response;
 
-        String path = httpReq.getRequestURI();
+        if ("OPTIONS".equalsIgnoreCase(httpReq.getMethod())) {
+            chain.doFilter(request, response);
+            return;
+        }
 
-        // Allow preflight / health checks without token
-        if (path.equals("/health")) {
+        if ("/health".equals(httpReq.getRequestURI())) {
             chain.doFilter(request, response);
             return;
         }
@@ -49,7 +51,6 @@ public class JwtFilter extends GenericFilter {
                     .parseSignedClaims(token)
                     .getPayload();
 
-            // Attach username to request for use in controller/service
             httpReq.setAttribute("username", claims.getSubject());
             httpReq.setAttribute("role", claims.get("role", String.class));
 

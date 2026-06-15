@@ -42,12 +42,23 @@ public class BookingRideService {
     public List<Offerride> filterRides(String from, String to) {
         List<Offerride> all    = rideRepo.findAll();
         List<Offerride> result = new ArrayList<>();
+
+        String fromLower = from.trim().toLowerCase();
+        String toLower   = to.trim().toLowerCase();
+
         for (Offerride ride : all) {
             List<String> points = ride.getWayPoint();
-            if (points != null
-                    && points.contains(from)
-                    && points.contains(to)
-                    && points.indexOf(from) < points.indexOf(to)) {
+            if (points == null) continue;
+
+            // Lowercase all waypoints for comparison
+            List<String> pointsLower = points.stream()
+                    .map(String::toLowerCase)
+                    .collect(java.util.stream.Collectors.toList());
+
+            int fromIdx = pointsLower.indexOf(fromLower);
+            int toIdx   = pointsLower.indexOf(toLower);
+
+            if (fromIdx != -1 && toIdx != -1 && fromIdx < toIdx) {
                 result.add(ride);
             }
         }
@@ -56,11 +67,19 @@ public class BookingRideService {
 
     public List<ImportantDetails> getCarDetails(String from, String to) {
         List<ImportantDetails> details = new ArrayList<>();
+        String fromLower = from.trim().toLowerCase();
+        String toLower   = to.trim().toLowerCase();
+
         for (Offerride ride : filterRides(from, to)) {
-            int i1     = ride.getWayPoint().indexOf(from);
-            int i2     = ride.getWayPoint().indexOf(to);
-            int dist   = ride.getDistance().get(i2) - ride.getDistance().get(i1);
+            List<String> pointsLower = ride.getWayPoint().stream()
+                    .map(String::toLowerCase)
+                    .collect(java.util.stream.Collectors.toList());
+
+            int i1   = pointsLower.indexOf(fromLower);
+            int i2   = pointsLower.indexOf(toLower);
+            int dist = ride.getDistance().get(i2) - ride.getDistance().get(i1);
             int charge = dist * ride.getCharge_per_km();
+
             details.add(new ImportantDetails(
                     ride.getCar_info().getCarNum(),
                     ride.getCar_info().getAvl_seats(),

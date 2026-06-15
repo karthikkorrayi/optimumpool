@@ -25,7 +25,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Public routes — no token needed
                         .requestMatchers("/register", "/login", "/health").permitAll()
+                        // Profile routes — controller validates JWT itself via @RequestHeader
+                        // Spring Security has no JWT filter so we permit here and let controller handle auth
+                        .requestMatchers("/profile", "/profile/update", "/profile/delete").permitAll()
+                        // Everything else still requires Spring Security authentication
                         .anyRequest().authenticated()
                 );
         return http.build();

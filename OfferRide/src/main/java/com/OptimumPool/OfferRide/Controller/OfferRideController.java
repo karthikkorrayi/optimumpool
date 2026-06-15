@@ -1,6 +1,7 @@
 package com.OptimumPool.OfferRide.Controller;
 
 import com.OptimumPool.OfferRide.Exception.OfferRideNotFound;
+import com.OptimumPool.OfferRide.Model.CarOwner;
 import com.OptimumPool.OfferRide.Model.Offerride;
 import com.OptimumPool.OfferRide.Services.OfferService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,18 +18,28 @@ public class OfferRideController {
     @Autowired
     private OfferService oService;
 
-    // Car owner creates a new ride offer
     @PostMapping
     public ResponseEntity<?> addOffer(@RequestBody Offerride offer, HttpServletRequest request) {
         String username = (String) request.getAttribute("username");
+
+        // FIXED: guard against null car_owner — create one if Jackson didn't deserialize it
+        if (offer.getCar_owner() == null) {
+            offer.setCar_owner(new CarOwner());
+        }
+        // Username always comes from JWT — not from the form
         offer.getCar_owner().setUsername(username);
-        return new ResponseEntity<>(oService.addOffer(offer), HttpStatus.CREATED);
+
+        try {
+            return new ResponseEntity<>(oService.addOffer(offer), HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>("Failed to create ride: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
-    // Car owner updates their ride
     @PutMapping("/{id}")
     public ResponseEntity<?> updateOffer(@PathVariable String id,
-                                         @RequestBody Offerride updates) throws OfferRideNotFound {
+                                         @RequestBody Offerride updates) {
         try {
             return new ResponseEntity<>(oService.updateRide(updates, id), HttpStatus.OK);
         } catch (OfferRideNotFound e) {
@@ -36,20 +47,22 @@ public class OfferRideController {
         }
     }
 
-    // Get all active rides (used by BookRide to sync via REST fallback)
     @GetMapping
     public ResponseEntity<?> getAllRides() {
-        oService.sendOffersToBookRide();
+        try {
+            oService.sendOffersToBookRide();
+        } catch (Exception e) {
+            // RabbitMQ might not be running — don't fail the whole request
+            System.err.println("RabbitMQ sync failed (non-fatal): " + e.getMessage());
+        }
         return new ResponseEntity<>(oService.getRide(), HttpStatus.OK);
     }
 
-    // Car owner sees who booked their rides
     @GetMapping("/bookings")
     public ResponseEntity<?> getMyBookings() {
         return new ResponseEntity<>(oService.getAllBooking(), HttpStatus.OK);
     }
 
-    // Car owner's own rides only
     @GetMapping("/mine")
     public ResponseEntity<?> getMyRides(HttpServletRequest request) {
         String username = (String) request.getAttribute("username");

@@ -13,11 +13,11 @@ public class OfferRideApplication {
 		SpringApplication.run(OfferRideApplication.class, args);
 	}
 
-	// FIXED: Renamed method from 'jwtFilter' to 'jwtFilterRegistration' to avoid bean name collision
 	@Bean
 	public FilterRegistrationBean<JwtFilter> jwtFilterRegistration(JwtFilter filter) {
 		FilterRegistrationBean<JwtFilter> bean = new FilterRegistrationBean<>(filter);
-		bean.addUrlPatterns("/offerride/*");
+		// FIXED: added "/offerride" — the wildcard "/offerride/*" misses POST /offerride itself
+		bean.addUrlPatterns("/offerride", "/offerride/*");
 		return bean;
 	}
 }

@@ -1,15 +1,20 @@
-FROM eclipse-temurin:17-jdk-alpine AS builder
+FROM maven:3.9-eclipse-temurin-17-alpine AS builder
 
 WORKDIR /build
 
 COPY pom.xml ./pom.xml
 COPY OfferRide/pom.xml ./OfferRide/pom.xml
 
-RUN mvn dependency:go-offline -pl OfferRide -am -B --no-transfer-progress
+COPY Authentication/pom.xml ./Authentication/pom.xml
+COPY BookRide/pom.xml ./BookRide/pom.xml
+
+RUN mvn dependency:go-offline -f OfferRide -B --no-transfer-progress
 
 COPY OfferRide/src ./OfferRide/src
 
-RUN mvn clean package -pl OfferRide -am -DskipTests -B --no-transfer-progress
+ENV MAVEN_OPTS="-Xmx1024m"
+
+RUN mvn clean package -pl OfferRide -am -Dmaven.test.skip=true -B --no-transfer-progress
 
 FROM eclipse-temurin:17-jre-alpine AS runtime
 

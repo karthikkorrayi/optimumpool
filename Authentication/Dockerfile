@@ -3,8 +3,7 @@
 # Use the full JDK + Maven image to compile
 # eclipse-temurin is the official OpenJDK distribution — well-maintained, free
 # ─────────────────────────────────────────────
-FROM eclipse-temurin:17-jdk-alpine AS builder
-
+FROM maven:3.9-eclipse-temurin-17-alpine AS builder
 # Set a working directory inside the build container
 WORKDIR /build
 
@@ -15,11 +14,15 @@ COPY pom.xml ./pom.xml
 # Copy this service's pom.xml
 COPY Authentication/pom.xml ./Authentication/pom.xml
 
+COPY OfferRide/pom.xml ./OfferRide/pom.xml
+COPY BookRide/pom.xml ./BookRide/pom.xml
+
 # Download dependencies BEFORE copying source code.
 # Why: Docker caches each layer. If pom.xml hasn't changed,
 # Docker reuses the cached dependency layer and skips the download.
 # This makes rebuilds after code-only changes go from 3 minutes to 10 seconds.
-RUN mvn dependency:go-offline -pl Authentication -am -B --no-transfer-progress
+# RUN apk add --no-cache maven
+RUN mvn dependency:go-offline -f Authentication -B --no-transfer-progress
 
 # NOW copy the source code
 COPY Authentication/src ./Authentication/src
@@ -27,7 +30,7 @@ COPY Authentication/src ./Authentication/src
 # Build the jar, skip tests (tests run in CI, not in Docker build)
 # -pl Authentication = build only this module
 # -am = also build parent/dependencies it needs
-RUN mvn clean package -pl Authentication -am -DskipTests -B --no-transfer-progress
+RUN mvn clean package -pl Authentication -am -Dmaven.test.skip=true -B --no-transfer-progress
 
 # ─────────────────────────────────────────────
 # STAGE 2: RUNTIME

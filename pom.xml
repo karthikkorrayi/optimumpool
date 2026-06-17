@@ -8,8 +8,7 @@
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
     <version>3.1.5</version>
-    <relativePath/>
-  </parent>
+    <relativePath/> </parent>
 
   <groupId>com.OptimumPool</groupId>
   <artifactId>optimumpool</artifactId>
@@ -23,7 +22,6 @@
   </modules>
 
   <dependencies>
-    <!-- RabbitMQ — available to all modules -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-amqp</artifactId>
@@ -34,4 +32,20 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

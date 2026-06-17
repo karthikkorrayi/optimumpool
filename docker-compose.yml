@@ -1,0 +1,172 @@
+version: "3.9"
+
+# ONE private network — all containers join it.
+# On this network, containers reach each other by service name.
+# Example: the "auth" container connects to MySQL via hostname "mysql".
+networks:
+  optimumpool-net:
+    driver: bridge
+
+# Named volumes — data stored here survives container restarts.
+# "docker-compose down" keeps the data.
+# "docker-compose down -v" deletes it (full reset).
+volumes:
+  mysql-data:
+  mongodb-data:
+
+services:
+
+  # ── INFRASTRUCTURE TIER ─────────────────────────────────────────────────────
+
+  mysql:
+    image: mysql:8.0
+    container_name: optimumpool-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - optimumpool-net
+    healthcheck:
+      # Ask MySQL if it accepts connections yet.
+      # Auth service won't start until this passes.
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost",
+             "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  mongodb:
+    image: mongo:6.0
+    container_name: optimumpool-mongodb
+    restart: unless-stopped
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - optimumpool-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: optimumpool-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    ports:
+      - "15672:15672"   # management UI — open http://localhost:15672 in browser
+    networks:
+      - optimumpool-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── APPLICATION TIER ────────────────────────────────────────────────────────
+
+  auth:
+    build:
+      context: .                            # repo root — Dockerfile can see parent pom.xml
+      dockerfile: Authentication/Dockerfile
+    image: optimumpool-auth:latest
+    container_name: optimumpool-auth
+    restart: unless-stopped
+    ports:
+      - "8020:8020"
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASS}
+      JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - optimumpool-net
+    depends_on:
+      mysql:
+        condition: service_healthy      # wait for MySQL healthcheck to pass
+      rabbitmq:
+        condition: service_healthy      # wait for RabbitMQ healthcheck to pass
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8020/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  offerride:
+    build:
+      context: .
+      dockerfile: OfferRide/Dockerfile
+    image: optimumpool-offerride:latest
+    container_name: optimumpool-offerride
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      MONGO_HOST: ${MONGO_HOST}
+      MONGO_PORT: ${MONGO_PORT}
+      MONGO_DB: ${MONGO_DB}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASS}
+      JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - optimumpool-net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  bookride:
+    build:
+      context: .
+      dockerfile: BookRide/Dockerfile
+    image: optimumpool-bookride:latest
+    container_name: optimumpool-bookride
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      MONGO_HOST: ${MONGO_HOST}
+      MONGO_PORT: ${MONGO_PORT}
+      MONGO_DB: ${MONGO_DB}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASS}
+      JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - optimumpool-net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
